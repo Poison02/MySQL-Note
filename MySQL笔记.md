@@ -31,9 +31,7 @@ drop table if exists 表名   -- 删除数据表
 
 alter table 表名 modify 字段1 数据类型 [first|alter] 字段2;   -- 修改表中字段的位置
 
-
-
-exit;               -- 退出连接
+exit;      -- 退出连接
 
 -- 单行注释 （SQL本身的注释）
 /* */ 多行注释 
@@ -64,7 +62,7 @@ create database if not exists `student`;
 2、删除数据库
 
 ```
-drop database if not exists `student`;
+drop database if exists `student`;
 ```
 
 3、使用数据库
