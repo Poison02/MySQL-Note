@@ -547,3 +547,337 @@ select min(student_score) as 最低分 from score;
 ## 5.3数据库级别的MD5加密
 
 MD5：不可逆，具体MD5值是一样的
+
+# 6、事务
+
+## 6.1什么是事务？
+
+要么都成功，要么都失败。如：下面的转账不能只执行一个！
+
+1、sql执行   A 给 B转账   A 有1000  B有200    A转200给B
+
+2、sql执行   B收到A给的钱   A剩800    B有400
+
+将一组SQL放在一个批次中去执行
+
+事物的原则：**ACID**原则：**原子性**，**一致性**，**隔离性**，**持久性**
+
+> 脏读，不可重复读，幻读
+
+1. **原子性**（Automatic）
+
+   要么都成功，要么都失败
+
+2. **一致性**（Consistency）
+
+​		事务前后数据完整性要保持一致
+
+1. **隔离性**（Isolation）
+
+   是多个用户并发访问数据库时，数据库每一个用户开启的事务，不能被其他事务的操作数据所干扰，事务之间需要隔离
+
+2. **持久性**（Durability）
+
+   事务一旦提交则不可逆，被持久化到数据库
+
+隔离所导致的问题：
+
+- 脏读
+- 不可重复读
+- 虚读（幻读）
+
+## 6.2实现事务
+
+MySQL是默认开启事务自动提交的。
+
+```sql
+set autocommit = 0 -- 关闭事务
+set autocommit = 1 -- 开启事务（默认）
+```
+
+手动处理事务
+
+ ```sql
+ set autocommit = 0
+ -- 事务开启
+ start transaction -- 标记一个事务的开始，从这个之后的sql都在一个事务中
+ /*
+ 	中间是sql语句
+ */
+ -- 提交 持久化 成功！
+ commit
+ -- 回滚 回到原来的样子 失败！
+ rollback
+ 
+ -- 事务结束
+ set autocommit = 1
+ ```
+
+```sql
+savapoint 保存点名 -- 设置一个事务的保存点
+rollback to savapoint 保存点名 -- 回滚到指定保存点
+release savepoint 保存点名 -- 撤销保存点
+```
+
+# 7、索引
+
+索引是帮助`MySQL`高效获取数据的数据结构
+
+## 7.1索引的分类
+
+- 主键索引  primary key
+  - 唯一的标识，主键不能重复，只能有一个列作为主键
+- 唯一索引  unique key
+  - 避免重复的列的出现，唯一索引可以重复，多个列都可以标识为唯一索引
+- 常规索引  key/index
+  - 默认的，index/key 关键字来设置
+- 全文索引  fulltext
+  - 在特定的数据库引擎下才有
+  - 快速定位
+
+## 7.2索引的使用
+
+显示所有的索引信息
+
+```sql
+show index from student
+```
+
+增加一个全文索引
+
+```sql
+# ...                                  索引名         列名
+alter table student add fulltext index student_name (student_name);
+```
+
+`explain` 分析sql执行的状况
+
+## 7.3测试索引
+
+这里使用一百万条数据测试索引
+
+建表语句：
+
+```sql
+CREATE TABLE `app_user` (
+    `id` BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(50) DEFAULT'' COMMENT'用户昵称',
+    `email` VARCHAR(50) NOT NULL COMMENT'用户邮箱',
+    `phone` VARCHAR(20) DEFAULT'' COMMENT'手机号',
+    `gender` TINYINT(4) UNSIGNED DEFAULT '0'COMMENT '性别（0：男;1:女）',
+    `password` VARCHAR(100) NOT NULL COMMENT '密码',
+    `age` TINYINT(4) DEFAULT'0'  COMMENT '年龄',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `update_time` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE 		CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`)
+) ENGINE=INNODB DEFAULT CHARSET=utf8 COMMENT = 'app用户表'
+```
+
+插入一百万条数据
+
+```sql
+DELIMITER $$
+CREATE FUNCTION mock_data()
+RETURNS INT DETERMINISTIC
+-- 注意returns，否则报错。
+BEGIN
+DECLARE num INT DEFAULT 1000000;
+-- num 作为截止数字，定义为百万，
+DECLARE i INT DEFAULT 0;
+WHILE i<num DO
+   INSERT INTO `app_user`(`name`,`email`,`phone`,`gender`,`password`,`age`)VALUES(CONCAT('用户',i),'19224305@qq.com',CONCAT('13', FLOOR(RAND()*(999999999-100000000)+100000000)),FLOOR(RAND()*2),UUID(), FLOOR(RAND()*100));
+   SET i = i + 1;
+END WHILE;
+RETURN i;
+END;
+
+SELECT mock_data(); -- 执行此函数 生成一百万条数据
+```
+
+这里插入一百万条数据需要等待一段时间。
+
+下面是试验：
+
+### 7.3.1、未添加索引
+
+```sql
+select * from app_user where name='用户9999';
+```
+
+![image-20230328172539199](./assets/image-20230328172539199.png)
+
+使用 `explain`分析
+
+```sql
+explain select * from app_user where name='用户9999';
+```
+
+![image-20230328172654110](./assets/image-20230328172654110.png)
+
+可见，这里需要查询992391行数据才能查到想要的数据，效率非常之慢！
+
+### 7.3.2、添加索引
+
+为`name`字段添加索引
+
+```sql
+create index id_app_user_name on app_user (`name`);
+```
+
+![image-20230328172920112](./assets/image-20230328172920112.png)
+
+```sql
+select * from app_user where name='用户9999';  -- 
+```
+
+![image-20230328172048581](./assets/image-20230328172048581.png)
+
+使用 `explain`分析：
+
+```sql
+explain select * from app_user where name='用户9999';
+```
+
+![image-20230328172213022](./assets/image-20230328172213022.png)
+
+这里明显能看出来有无索引两者的差距很明显！
+
+## 7.4 索引原则
+
+- 索引不是越多越好
+- 不要对经常变动的数据加索引
+- 小数据量的表不需要加索引
+- 索引一般加在常用来查询的字段上
+
+关于索引背后的数据结构：请看这篇文章：http://blog.codinglabs.org/articles/theory-of-mysql-index.html
+
+# 8、权限管理与备份
+
+## 8.1 用户管理
+
+`sql`操作：对 `mysql.user`表进行增删改查。
+
+```sql
+-- 创建用户
+create user poison02 identified by '123456';
+```
+
+```sql
+-- 修改密码(修改当前用户)
+set password = password('111111');
+```
+
+```sql
+-- 修改密码（修改指定用户）
+set password for poison02 = password('111111');
+```
+
+```sql
+-- 重命名  rename user 原名字 to 新名字
+rename user poison02 to poison01;
+```
+
+```sql
+-- 用户授权 给用户增加所有的权限，所有库 所有表
+-- 除了给别人授权，其他操作和root用户一样
+grant all privileges on *.* to poison02;
+```
+
+```sql
+-- 查询权限 查看指定用户的权限
+show grants for poison02;
+```
+
+```sql
+-- 查看 root 的权限
+show grants for root@localhost;
+```
+
+```sql
+-- 撤销权限
+revoke all privileges on *.* from poison02;
+```
+
+```sql
+-- 删除用户
+drop user poison02;
+```
+
+## 8.2 MySQL备份
+
+- 保证重要的数据不丢失；
+
+- 数据转移
+
+MySQL数据库备份的方式：
+
+- 直接拷贝物理文件，`data`目录
+- 使用可视化工具的导出功能  sql 文件
+- 使用命令行 `mysqldump`
+
+```sql
+-- mysqldump -h 主机名 -u 用户名 -p 密码 数据库 (可选)表名[可以多张表，用空格隔开] >物理磁盘位置
+mysqldump -hlocalhost -uroot -p123456 shcool student >D:/s.sql;
+```
+
+导入：
+
+```sql
+source D:/s.sql;
+
+-- 或者是这个
+mysql -u root -p123456 school<D:/s.sql;	
+```
+
+# 9、规范数据库设计
+
+## 9.1 为什么需要设计？
+
+当数据库比较复杂时，自然需要设计了。
+
+糟糕数据库设计：
+
+- 数据冗余，浪费空间
+- 数据插入和删除麻烦
+- 程序性能差
+
+关于数据库的设计：
+
+- 分析需求：分析业务和需要处理的数据库的需求
+- 概要设计：设计关系图 E-R图
+
+## 9.2 三大范式
+
+为什么需要数据规范化？
+
+- 数据重复
+- 更新异常
+- 插入异常
+- 删除异常
+
+### 三大范式：
+
+#### **第一范式**
+
+数据库每一列都是不可分割的原子性数据，保证 **原子性**
+
+#### **第二范式**
+
+前提：满足第一范式
+
+每张表只描述一件事情
+
+#### **第三范式**
+
+前提：满足第一第二范式
+
+确保数据表中的每一列数据都和主键直接相关，不能间接相关
+
+### 规范性和性能的问题
+
+关联查询的表不能超过三张表：
+
+- 考虑商业化的需求和目标，成本，用户体验
+- 适当考虑以下规范性
+- 故意给某些表增加一些冗余的字段
+- 故意增加一些计算列（大数据量降低为小数据量）
