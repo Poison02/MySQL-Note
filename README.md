@@ -5,3 +5,7 @@
 当然这里也暂时是在Windows下面学习并练习的。
 
 这里是在Linux系统上安装MySQL：[安装MySQL8](安装MySQL8)
+
+这是掘金小册上的学习：
+
+1. 《[MySQL是怎样使用的：从零蛋开始学习MySQL](./MySQL是怎样使用的：从零蛋开始学习MySQL)》
